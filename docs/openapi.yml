@@ -70,7 +70,7 @@ paths:
   /api/v1/sdlc/executions:
     post:
       summary: Start an agentic SDLC execution
-      operationId: startSdlcExecution
+      operationId: start
       requestBody:
         required: true
         content:
@@ -87,7 +87,7 @@ paths:
   /api/v1/sdlc/executions/{executionId}:
     get:
       summary: Get SDLC execution state
-      operationId: getSdlcExecution
+      operationId: get
       parameters:
         - $ref: '#/components/parameters/ExecutionId'
       responses:
@@ -100,7 +100,7 @@ paths:
   /api/v1/sdlc/executions/{executionId}/approvals:
     post:
       summary: Approve or reject a pending gate
-      operationId: approveSdlcGate
+      operationId: approve
       parameters:
         - $ref: '#/components/parameters/ExecutionId'
       requestBody:
@@ -119,7 +119,7 @@ paths:
   /api/v1/sdlc/executions/{executionId}/audit:
     get:
       summary: Get audit events for an SDLC execution
-      operationId: getSdlcAudit
+      operationId: audit
       parameters:
         - $ref: '#/components/parameters/ExecutionId'
       responses:

@@ -11,6 +11,15 @@ import com.agenticproficient.urlshortner.agentic.dto.SdlcExecutionResponse;
 import com.agenticproficient.urlshortner.agentic.dto.StartSdlcExecutionRequest;
 import com.agenticproficient.urlshortner.agentic.facade.AgenticOrchestrationFacade;
 import com.agenticproficient.urlshortner.common.ApiPaths;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,6 +34,8 @@ import reactor.core.publisher.Mono;
 @Validated
 @RestController
 @RequestMapping(ApiPaths.SDLC_EXECUTIONS)
+@Tag(name = "Agentic SDLC Orchestration",
+		description = "Governed requirement-to-release workflow with graph execution, approvals, audit, and metrics.")
 public class SdlcOrchestrationController {
 
 	private final AgenticOrchestrationFacade orchestrationFacade;
@@ -34,25 +45,75 @@ public class SdlcOrchestrationController {
 	}
 
 	@PostMapping
-	public Mono<ResponseEntity<SdlcExecutionResponse>> start(@Valid @RequestBody StartSdlcExecutionRequest request) {
+	@Operation(summary = "Start an SDLC execution",
+			description = "Creates an agentic workflow execution and advances until completion or the next approval gate.")
+	@ApiResponses({
+			@ApiResponse(responseCode = "201", description = "Execution created",
+					content = @Content(schema = @Schema(implementation = SdlcExecutionResponse.class))),
+			@ApiResponse(responseCode = "400", description = "Invalid scenario type or requirement",
+					content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+	})
+	public Mono<ResponseEntity<SdlcExecutionResponse>> start(
+			@io.swagger.v3.oas.annotations.parameters.RequestBody(
+					description = "Workflow start request", required = true,
+					content = @Content(schema = @Schema(implementation = StartSdlcExecutionRequest.class)))
+			@Valid @RequestBody StartSdlcExecutionRequest request) {
 		return orchestrationFacade.start(request)
 				.map(response -> ResponseEntity.created(URI.create(ApiPaths.SDLC_EXECUTIONS + "/"
 						+ response.executionId())).body(response));
 	}
 
 	@GetMapping("/{executionId}")
-	public Mono<SdlcExecutionResponse> get(@PathVariable UUID executionId) {
+	@Operation(summary = "Get SDLC execution state",
+			description = "Returns current execution status, completed steps, pending gate, context, and reliability metrics.")
+	@ApiResponses({
+			@ApiResponse(responseCode = "200", description = "Execution state",
+					content = @Content(schema = @Schema(implementation = SdlcExecutionResponse.class))),
+			@ApiResponse(responseCode = "404", description = "Execution not found",
+					content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+	})
+	public Mono<SdlcExecutionResponse> get(
+			@Parameter(description = "Workflow execution id", example = "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+					required = true)
+			@PathVariable UUID executionId) {
 		return orchestrationFacade.get(executionId);
 	}
 
 	@PostMapping("/{executionId}/approvals")
-	public Mono<SdlcExecutionResponse> approve(@PathVariable UUID executionId,
+	@Operation(summary = "Approve or reject pending workflow gate",
+			description = "Approves the current human checkpoint and resumes execution, or rejects it and safe-stops.")
+	@ApiResponses({
+			@ApiResponse(responseCode = "200", description = "Approval decision applied",
+					content = @Content(schema = @Schema(implementation = SdlcExecutionResponse.class))),
+			@ApiResponse(responseCode = "400", description = "Execution is not waiting for approval or payload is invalid",
+					content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
+			@ApiResponse(responseCode = "404", description = "Execution not found",
+					content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+	})
+	public Mono<SdlcExecutionResponse> approve(
+			@Parameter(description = "Workflow execution id", example = "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+					required = true)
+			@PathVariable UUID executionId,
+			@io.swagger.v3.oas.annotations.parameters.RequestBody(
+					description = "Human approval decision", required = true,
+					content = @Content(schema = @Schema(implementation = ApprovalRequest.class)))
 			@Valid @RequestBody ApprovalRequest request) {
 		return orchestrationFacade.approve(executionId, request);
 	}
 
 	@GetMapping("/{executionId}/audit")
-	public Flux<AuditEventResponse> audit(@PathVariable UUID executionId) {
+	@Operation(summary = "Get SDLC audit events",
+			description = "Returns ordered audit-grade event history for a workflow execution.")
+	@ApiResponses({
+			@ApiResponse(responseCode = "200", description = "Audit events",
+					content = @Content(array = @ArraySchema(schema = @Schema(implementation = AuditEventResponse.class)))),
+			@ApiResponse(responseCode = "404", description = "Execution not found",
+					content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
+	})
+	public Flux<AuditEventResponse> audit(
+			@Parameter(description = "Workflow execution id", example = "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+					required = true)
+			@PathVariable UUID executionId) {
 		return orchestrationFacade.audit(executionId);
 	}
 }
