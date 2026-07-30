@@ -24,6 +24,10 @@ public class AgenticWorkflowProperties {
 	@Max(16)
 	private int parallelism = 4;
 
+	@Min(1)
+	@Max(500)
+	private int maxListSize = 50;
+
 	public int getMaxRetries() {
 		return maxRetries;
 	}
@@ -46,5 +50,13 @@ public class AgenticWorkflowProperties {
 
 	public void setParallelism(int parallelism) {
 		this.parallelism = parallelism;
+	}
+
+	public int getMaxListSize() {
+		return maxListSize;
+	}
+
+	public void setMaxListSize(int maxListSize) {
+		this.maxListSize = maxListSize;
 	}
 }

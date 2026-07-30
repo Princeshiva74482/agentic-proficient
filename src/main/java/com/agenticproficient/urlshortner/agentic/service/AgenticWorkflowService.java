@@ -10,9 +10,12 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import com.agenticproficient.urlshortner.agentic.dto.ApprovalRequest;
+import com.agenticproficient.urlshortner.agentic.dto.AuditEventResponse;
+import com.agenticproficient.urlshortner.agentic.dto.SdlcExecutionResponse;
 import com.agenticproficient.urlshortner.agentic.dto.StartSdlcExecutionRequest;
 import com.agenticproficient.urlshortner.agentic.entity.AgenticAuditEvent;
 import com.agenticproficient.urlshortner.agentic.entity.AgenticExecution;
+import com.agenticproficient.urlshortner.agentic.mapper.AgenticResponseMapper;
 import com.agenticproficient.urlshortner.agentic.model.AgentExecutionInput;
 import com.agenticproficient.urlshortner.agentic.model.ScenarioType;
 import com.agenticproficient.urlshortner.agentic.model.StepDefinition;
@@ -28,17 +31,25 @@ import com.agenticproficient.urlshortner.exception.ApiErrorCode;
 import com.agenticproficient.urlshortner.exception.DomainException;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
+/**
+ * Application service that acts as the facade for SDLC workflow use cases.
+ */
 @Service
 public class AgenticWorkflowService {
 
+	private static final Logger LOGGER = LoggerFactory.getLogger(AgenticWorkflowService.class);
+
 	private final AgenticAuditEventRepository auditEventRepository;
 	private final AgenticExecutionRepository executionRepository;
+	private final AgenticResponseMapper mapper;
 	private final AgenticStepExecutor stepExecutor;
 	private final AgenticWorkflowProperties properties;
 	private final Clock clock;
@@ -48,11 +59,13 @@ public class AgenticWorkflowService {
 	private final WorkflowGraph workflowGraph;
 
 	public AgenticWorkflowService(AgenticAuditEventRepository auditEventRepository,
-			AgenticExecutionRepository executionRepository, AgenticStepExecutor stepExecutor,
-			AgenticWorkflowProperties properties, Clock clock, MeterRegistry meterRegistry, ObjectMapper objectMapper,
-			PolicyGuardrailService policyGuardrailService, WorkflowGraph workflowGraph) {
+			AgenticExecutionRepository executionRepository, AgenticResponseMapper mapper,
+			AgenticStepExecutor stepExecutor, AgenticWorkflowProperties properties, Clock clock,
+			MeterRegistry meterRegistry, ObjectMapper objectMapper, PolicyGuardrailService policyGuardrailService,
+			WorkflowGraph workflowGraph) {
 		this.auditEventRepository = auditEventRepository;
 		this.executionRepository = executionRepository;
+		this.mapper = mapper;
 		this.stepExecutor = stepExecutor;
 		this.properties = properties;
 		this.clock = clock;
@@ -62,7 +75,7 @@ public class AgenticWorkflowService {
 		this.workflowGraph = workflowGraph;
 	}
 
-	public Mono<AgenticExecution> start(StartSdlcExecutionRequest request) {
+	public Mono<SdlcExecutionResponse> start(StartSdlcExecutionRequest request) {
 		WorkflowContextDocument context = WorkflowContextDocument.fromRequirement(request.requirement());
 		AgenticExecution execution = AgenticExecution.create(request.scenarioType(), request.requirement(),
 				writeContext(context), clock.instant());
@@ -70,10 +83,13 @@ public class AgenticWorkflowService {
 				.doOnNext(AgenticExecution::markPersisted)
 				.flatMap(saved -> recordEvent(saved, WorkflowEventType.RUN_CREATED, null, "SDLC execution created",
 						json(Map.of("scenarioType", request.scenarioType().name())))
-						.then(runUntilBlockedOrComplete(saved)));
+						.then(runUntilBlockedOrComplete(saved)))
+				.map(mapper::toResponse)
+				.doOnSuccess(response -> LOGGER.info("Started SDLC execution executionId={} status={}",
+						response.executionId(), response.status()));
 	}
 
-	public Mono<AgenticExecution> approve(UUID executionId, ApprovalRequest request) {
+	public Mono<SdlcExecutionResponse> approve(UUID executionId, ApprovalRequest request) {
 		return executionRepository.findById(executionId)
 				.switchIfEmpty(Mono.error(() -> notFound(executionId)))
 				.flatMap(execution -> {
@@ -100,18 +116,28 @@ public class AgenticWorkflowService {
 							.flatMap(saved -> recordEvent(saved, WorkflowEventType.APPROVAL_GRANTED, pendingStep,
 									"Human reviewer approved the pending gate", approvalMetadata(request))
 									.then(runUntilBlockedOrComplete(saved)));
-				});
+				})
+				.map(mapper::toResponse);
 	}
 
-	public Mono<AgenticExecution> get(UUID executionId) {
+	public Mono<SdlcExecutionResponse> get(UUID executionId) {
 		return executionRepository.findById(executionId)
-				.switchIfEmpty(Mono.error(() -> notFound(executionId)));
+				.switchIfEmpty(Mono.error(() -> notFound(executionId)))
+				.map(mapper::toResponse);
 	}
 
-	public Flux<AgenticAuditEvent> audit(UUID executionId) {
+	public Flux<SdlcExecutionResponse> getAll() {
+		return executionRepository.findRecent(properties.getMaxListSize())
+				.map(mapper::toResponse)
+				.doOnSubscribe(subscription -> LOGGER.info("Listing recent SDLC executions limit={}",
+						properties.getMaxListSize()));
+	}
+
+	public Flux<AuditEventResponse> audit(UUID executionId) {
 		return executionRepository.existsById(executionId)
 				.flatMapMany(exists -> exists
 						? auditEventRepository.findByExecutionIdOrderByCreatedAtAsc(executionId)
+								.map(mapper::toResponse)
 						: Flux.error(notFound(executionId)));
 	}
 
@@ -283,6 +309,7 @@ public class AgenticWorkflowService {
 	}
 
 	private DomainException notFound(UUID executionId) {
+		LOGGER.warn("SDLC execution not found executionId={}", executionId);
 		return DomainException.notFound(ApiErrorCode.WORKFLOW_NOT_FOUND, "Workflow execution not found: " + executionId);
 	}
 

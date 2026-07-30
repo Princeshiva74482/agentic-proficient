@@ -31,6 +31,10 @@ public class UrlShortenerProperties {
 	@Max(3650)
 	private long defaultTtlDays = 365;
 
+	@Min(1)
+	@Max(1000)
+	private int maxListSize = 100;
+
 	@Valid
 	private Security security = new Security();
 
@@ -67,6 +71,14 @@ public class UrlShortenerProperties {
 
 	public void setDefaultTtlDays(long defaultTtlDays) {
 		this.defaultTtlDays = defaultTtlDays;
+	}
+
+	public int getMaxListSize() {
+		return maxListSize;
+	}
+
+	public void setMaxListSize(int maxListSize) {
+		this.maxListSize = maxListSize;
 	}
 
 	public Security getSecurity() {

@@ -11,6 +11,7 @@ import com.agenticproficient.urlshortner.shortener.dto.AnalyticsResponse;
 import com.agenticproficient.urlshortner.shortener.dto.CreateShortUrlRequest;
 import com.agenticproficient.urlshortner.shortener.dto.RecentClickResponse;
 import com.agenticproficient.urlshortner.shortener.dto.RedirectTarget;
+import com.agenticproficient.urlshortner.shortener.dto.UrlResponse;
 import com.agenticproficient.urlshortner.shortener.entity.ClickEvent;
 import com.agenticproficient.urlshortner.shortener.entity.ShortUrl;
 import com.agenticproficient.urlshortner.shortener.mapper.UrlShortenerMapper;
@@ -23,8 +24,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+/**
+ * Application service that acts as the facade for URL shortener use cases.
+ */
 @Service
 public class UrlShortenerService {
 
@@ -59,7 +64,22 @@ public class UrlShortenerService {
 		this.properties = properties;
 	}
 
-	public Mono<ShortUrl> create(CreateShortUrlRequest request) {
+	public Mono<UrlResponse> createShortUrl(CreateShortUrlRequest request) {
+		return create(request)
+				.map(shortUrl -> mapper.toResponse(shortUrl, normalizedBaseUrl()));
+	}
+
+	public Flux<UrlResponse> getAllShortUrls() {
+		return shortUrlRepository.findAvailable(properties.getMaxListSize())
+				.map(shortUrl -> mapper.toResponse(shortUrl, normalizedBaseUrl()));
+	}
+
+	public Mono<UrlResponse> getShortUrl(String shortCode) {
+		return getByShortCode(shortCode)
+				.map(shortUrl -> mapper.toResponse(shortUrl, normalizedBaseUrl()));
+	}
+
+	private Mono<ShortUrl> create(CreateShortUrlRequest request) {
 		return Mono.fromCallable(() -> policyValidator.toCommand(request))
 				.flatMap(command -> command.customAlias() == null
 						? createWithGeneratedCode(command, 1)
@@ -154,5 +174,13 @@ public class UrlShortenerService {
 
 	private DomainException notFound(String shortCode) {
 		return DomainException.notFound(ApiErrorCode.URL_NOT_FOUND, "Short URL not found: " + shortCode);
+	}
+
+	private String normalizedBaseUrl() {
+		String baseUrl = properties.getBaseUrl();
+		while (baseUrl.endsWith("/")) {
+			baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
+		}
+		return baseUrl;
 	}
 }

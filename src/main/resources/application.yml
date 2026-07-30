@@ -14,6 +14,9 @@ spring:
     password:
     locations: classpath:db/migration
 
+server:
+  forward-headers-strategy: framework
+
 management:
   endpoints:
     web:
@@ -42,12 +45,13 @@ springdoc:
     - /**
 
 url-shortener:
-  base-url: http://localhost:8080
+  base-url: ${URL_SHORTENER_BASE_URL:http://localhost:8080}
   code-length: 8
   max-code-generation-attempts: 6
   default-ttl-days: 365
+  max-list-size: 100
   privacy:
-    ip-hash-salt: change-me-in-production
+    ip-hash-salt: ${URL_SHORTENER_IP_HASH_SALT:change-me-in-production}
   security:
     allow-private-hosts: false
     allowed-schemes:
@@ -67,3 +71,4 @@ agentic:
     max-retries: 2
     step-timeout: 3s
     parallelism: 4
+    max-list-size: 50

@@ -9,7 +9,7 @@ import com.agenticproficient.urlshortner.agentic.dto.ApprovalRequest;
 import com.agenticproficient.urlshortner.agentic.dto.AuditEventResponse;
 import com.agenticproficient.urlshortner.agentic.dto.SdlcExecutionResponse;
 import com.agenticproficient.urlshortner.agentic.dto.StartSdlcExecutionRequest;
-import com.agenticproficient.urlshortner.agentic.facade.AgenticOrchestrationFacade;
+import com.agenticproficient.urlshortner.agentic.service.AgenticWorkflowService;
 import com.agenticproficient.urlshortner.common.ApiPaths;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -26,25 +26,23 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 @Validated
 @RestController
-@RequestMapping(ApiPaths.SDLC_EXECUTIONS)
 @Tag(name = "Agentic SDLC Orchestration",
 		description = "Governed requirement-to-release workflow with graph execution, approvals, audit, and metrics.")
 public class SdlcOrchestrationController {
 
-	private final AgenticOrchestrationFacade orchestrationFacade;
+	private final AgenticWorkflowService workflowService;
 
-	public SdlcOrchestrationController(AgenticOrchestrationFacade orchestrationFacade) {
-		this.orchestrationFacade = orchestrationFacade;
+	public SdlcOrchestrationController(AgenticWorkflowService workflowService) {
+		this.workflowService = workflowService;
 	}
 
-	@PostMapping
+	@PostMapping(path = ApiPaths.SDLC_EXECUTIONS)
 	@Operation(summary = "Start an SDLC execution",
 			description = "Creates an agentic workflow execution and advances until completion or the next approval gate.")
 	@ApiResponses({
@@ -58,12 +56,21 @@ public class SdlcOrchestrationController {
 					description = "Workflow start request", required = true,
 					content = @Content(schema = @Schema(implementation = StartSdlcExecutionRequest.class)))
 			@Valid @RequestBody StartSdlcExecutionRequest request) {
-		return orchestrationFacade.start(request)
+		return workflowService.start(request)
 				.map(response -> ResponseEntity.created(URI.create(ApiPaths.SDLC_EXECUTIONS + "/"
 						+ response.executionId())).body(response));
 	}
 
-	@GetMapping("/{executionId}")
+	@GetMapping(path = ApiPaths.SDLC_EXECUTIONS)
+	@Operation(summary = "List SDLC executions",
+			description = "Returns recent SDLC executions, newest updated first, so callers can discover valid execution IDs.")
+	@ApiResponse(responseCode = "200", description = "Recent executions",
+			content = @Content(array = @ArraySchema(schema = @Schema(implementation = SdlcExecutionResponse.class))))
+	public Flux<SdlcExecutionResponse> getAll() {
+		return workflowService.getAll();
+	}
+
+	@GetMapping(path = ApiPaths.SDLC_EXECUTIONS + "/{executionId}")
 	@Operation(summary = "Get SDLC execution state",
 			description = "Returns current execution status, completed steps, pending gate, context, and reliability metrics.")
 	@ApiResponses({
@@ -73,13 +80,14 @@ public class SdlcOrchestrationController {
 					content = @Content(schema = @Schema(implementation = ProblemDetail.class)))
 	})
 	public Mono<SdlcExecutionResponse> get(
-			@Parameter(description = "Workflow execution id", example = "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+			@Parameter(description = "Workflow execution id returned by POST /api/v1/sdlc/executions or GET /api/v1/sdlc/executions",
+					example = "3fa85f64-5717-4562-b3fc-2c963f66afa6",
 					required = true)
 			@PathVariable UUID executionId) {
-		return orchestrationFacade.get(executionId);
+		return workflowService.get(executionId);
 	}
 
-	@PostMapping("/{executionId}/approvals")
+	@PostMapping(path = ApiPaths.SDLC_EXECUTIONS + "/{executionId}/approvals")
 	@Operation(summary = "Approve or reject pending workflow gate",
 			description = "Approves the current human checkpoint and resumes execution, or rejects it and safe-stops.")
 	@ApiResponses({
@@ -98,10 +106,10 @@ public class SdlcOrchestrationController {
 					description = "Human approval decision", required = true,
 					content = @Content(schema = @Schema(implementation = ApprovalRequest.class)))
 			@Valid @RequestBody ApprovalRequest request) {
-		return orchestrationFacade.approve(executionId, request);
+		return workflowService.approve(executionId, request);
 	}
 
-	@GetMapping("/{executionId}/audit")
+	@GetMapping(path = ApiPaths.SDLC_EXECUTIONS + "/{executionId}/audit")
 	@Operation(summary = "Get SDLC audit events",
 			description = "Returns ordered audit-grade event history for a workflow execution.")
 	@ApiResponses({
@@ -114,6 +122,6 @@ public class SdlcOrchestrationController {
 			@Parameter(description = "Workflow execution id", example = "3fa85f64-5717-4562-b3fc-2c963f66afa6",
 					required = true)
 			@PathVariable UUID executionId) {
-		return orchestrationFacade.audit(executionId);
+		return workflowService.audit(executionId);
 	}
 }

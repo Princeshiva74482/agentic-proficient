@@ -71,7 +71,7 @@ public class AgenticStepExecutor {
 		return output(WorkflowStep.IMPACT_ANALYSIS,
 				"Identified brownfield impact areas across API, persistence, validation, tests, and documentation.",
 				List.of("Impacted module map", "Regression-risk register"),
-				List.of("Controllers depend on facades, not services", "Persistence remains isolated behind repositories"),
+				List.of("Controllers depend on application services", "Persistence remains isolated behind repositories"),
 				List.of("Existing behavior may regress if aliases or redirects change"),
 				List.of("Integration tests must cover create, redirect, analytics, and workflow approvals"),
 				List.of("Use architecture findings to update design"));
@@ -79,9 +79,9 @@ public class AgenticStepExecutor {
 
 	private StageOutput architectureDesign(AgentExecutionInput input) {
 		return output(WorkflowStep.ARCHITECTURE_DESIGN,
-				"Designed a modular WebFlux application with facade boundaries, reactive repositories, and explicit orchestration graph.",
+				"Designed a modular WebFlux application with service-level use cases, reactive repositories, and explicit orchestration graph.",
 				List.of("Component model", "Dependency graph", "Control-flow decisions"),
-				List.of("Facade pattern is the controller boundary", "MapStruct maps persistence entities to API responses",
+				List.of("Application services are the controller boundary", "MapStruct maps persistence entities to API responses",
 						"Audit events preserve decision lineage"),
 				List.of("Reactive H2 is suitable for prototype only", "Redirect analytics must fail open to protect availability"),
 				List.of("Graph gates must prevent unapproved implementation and release actions"),

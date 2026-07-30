@@ -1,5 +1,6 @@
 package com.agenticproficient.urlshortner;
 
+import java.util.List;
 import java.util.UUID;
 
 import com.agenticproficient.urlshortner.agentic.dto.ApprovalRequest;
@@ -79,6 +80,29 @@ class UrlShortenerIntegrationTests {
 	}
 
 	@Test
+	void listsAvailableShortUrlsWithoutInput() {
+		String alias = "list" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+
+		webTestClient.post()
+				.uri("/api/v1/urls")
+				.bodyValue(new CreateShortUrlRequest("https://example.com/list", alias, null))
+				.exchange()
+				.expectStatus().isCreated();
+
+		List<UrlResponse> urls = webTestClient.get()
+				.uri("/api/v1/urls")
+				.exchange()
+				.expectStatus().isOk()
+				.expectBodyList(UrlResponse.class)
+				.returnResult()
+				.getResponseBody();
+
+		assertThat(urls)
+				.isNotNull()
+				.anyMatch(url -> alias.equals(url.shortCode()));
+	}
+
+	@Test
 	void orchestratesGreenfieldWorkflowThroughApprovalGates() {
 		SdlcExecutionResponse started = webTestClient.post()
 				.uri("/api/v1/sdlc/executions")
@@ -111,6 +135,33 @@ class UrlShortenerIntegrationTests {
 		assertThat(completed.pendingApprovalStep()).isNull();
 		assertThat(completed.completedSteps()).contains(WorkflowStep.RELEASE_READINESS);
 		assertThat(completed.reliabilityMetrics().successRate()).isEqualTo(1.0);
+	}
+
+	@Test
+	void listsSdlcExecutionsWithoutInput() {
+		SdlcExecutionResponse started = webTestClient.post()
+				.uri("/api/v1/sdlc/executions")
+				.bodyValue(new StartSdlcExecutionRequest(ScenarioType.GREENFIELD,
+						"Build a production-grade reactive URL shortener with clear service facade boundaries."))
+				.exchange()
+				.expectStatus().isCreated()
+				.expectBody(SdlcExecutionResponse.class)
+				.returnResult()
+				.getResponseBody();
+
+		assertThat(started).isNotNull();
+
+		List<SdlcExecutionResponse> executions = webTestClient.get()
+				.uri("/api/v1/sdlc/executions")
+				.exchange()
+				.expectStatus().isOk()
+				.expectBodyList(SdlcExecutionResponse.class)
+				.returnResult()
+				.getResponseBody();
+
+		assertThat(executions)
+				.isNotNull()
+				.anyMatch(execution -> started.executionId().equals(execution.executionId()));
 	}
 
 	@Test

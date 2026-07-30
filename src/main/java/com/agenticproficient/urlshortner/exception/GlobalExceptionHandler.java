@@ -1,6 +1,6 @@
 package com.agenticproficient.urlshortner.exception;
 
-import java.time.Instant;
+import java.time.Clock;
 import java.util.List;
 
 import jakarta.validation.ConstraintViolationException;
@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.bind.support.WebExchangeBindException;
+import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.ServerWebInputException;
 
 @Order(Ordered.HIGHEST_PRECEDENCE)
@@ -23,12 +24,23 @@ public class GlobalExceptionHandler {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+	private final Clock clock;
+
+	public GlobalExceptionHandler(Clock clock) {
+		this.clock = clock;
+	}
+
 	@ExceptionHandler(DomainException.class)
-	public ResponseEntity<ProblemDetail> handleDomainException(DomainException exception) {
+	public ResponseEntity<ProblemDetail> handleDomainException(DomainException exception, ServerWebExchange exchange) {
+		LOGGER.warn("Handled API error status={} code={} path={} detail={}",
+				exception.getStatus().value(),
+				exception.getErrorCode().getValue(),
+				exchange.getRequest().getPath().pathWithinApplication().value(),
+				exception.getMessage());
 		ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(exception.getStatus(), exception.getMessage());
 		problemDetail.setTitle(exception.getErrorCode().getValue());
 		problemDetail.setProperty("code", exception.getErrorCode().getValue());
-		problemDetail.setProperty("timestamp", Instant.now());
+		problemDetail.setProperty("timestamp", clock.instant());
 		return ResponseEntity.status(exception.getStatus()).body(problemDetail);
 	}
 
@@ -71,7 +83,7 @@ public class GlobalExceptionHandler {
 		ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(status, detail);
 		problemDetail.setTitle(errorCode.getValue());
 		problemDetail.setProperty("code", errorCode.getValue());
-		problemDetail.setProperty("timestamp", Instant.now());
+		problemDetail.setProperty("timestamp", clock.instant());
 		return problemDetail;
 	}
 }
