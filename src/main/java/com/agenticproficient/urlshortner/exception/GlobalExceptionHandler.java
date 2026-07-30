@@ -5,6 +5,7 @@ import java.util.List;
 
 import jakarta.validation.ConstraintViolationException;
 
+import com.agenticproficient.urlshortner.common.ApplicationConstants;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -32,7 +33,9 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler(DomainException.class)
 	public ResponseEntity<ProblemDetail> handleDomainException(DomainException exception, ServerWebExchange exchange) {
-		LOGGER.warn("Handled API error status={} code={} path={} detail={}",
+		String requestId = requestId(exchange);
+		LOGGER.warn("Handled API error requestId={} status={} code={} path={} detail={}",
+				requestId,
 				exception.getStatus().value(),
 				exception.getErrorCode().getValue(),
 				exchange.getRequest().getPath().pathWithinApplication().value(),
@@ -41,24 +44,27 @@ public class GlobalExceptionHandler {
 		problemDetail.setTitle(exception.getErrorCode().getValue());
 		problemDetail.setProperty("code", exception.getErrorCode().getValue());
 		problemDetail.setProperty("timestamp", clock.instant());
+		problemDetail.setProperty(ApplicationConstants.REQUEST_ID_ATTRIBUTE, requestId);
 		return ResponseEntity.status(exception.getStatus()).body(problemDetail);
 	}
 
 	@ExceptionHandler(WebExchangeBindException.class)
-	public ResponseEntity<ProblemDetail> handleValidationException(WebExchangeBindException exception) {
+	public ResponseEntity<ProblemDetail> handleValidationException(WebExchangeBindException exception,
+			ServerWebExchange exchange) {
 		List<String> errors = exception.getFieldErrors().stream()
 				.map(error -> error.getField() + ": " + error.getDefaultMessage())
 				.toList();
 		ProblemDetail problemDetail = baseProblem(HttpStatus.BAD_REQUEST, ApiErrorCode.VALIDATION_FAILED,
-				"Request validation failed");
+				"Request validation failed", exchange);
 		problemDetail.setProperty("errors", errors);
 		return ResponseEntity.badRequest().body(problemDetail);
 	}
 
 	@ExceptionHandler(ConstraintViolationException.class)
-	public ResponseEntity<ProblemDetail> handleConstraintViolationException(ConstraintViolationException exception) {
+	public ResponseEntity<ProblemDetail> handleConstraintViolationException(ConstraintViolationException exception,
+			ServerWebExchange exchange) {
 		ProblemDetail problemDetail = baseProblem(HttpStatus.BAD_REQUEST, ApiErrorCode.VALIDATION_FAILED,
-				"Constraint validation failed");
+				"Constraint validation failed", exchange);
 		problemDetail.setProperty("errors", exception.getConstraintViolations().stream()
 				.map(violation -> violation.getPropertyPath() + ": " + violation.getMessage())
 				.toList());
@@ -66,24 +72,32 @@ public class GlobalExceptionHandler {
 	}
 
 	@ExceptionHandler(ServerWebInputException.class)
-	public ResponseEntity<ProblemDetail> handleInputException(ServerWebInputException exception) {
+	public ResponseEntity<ProblemDetail> handleInputException(ServerWebInputException exception,
+			ServerWebExchange exchange) {
 		return ResponseEntity.badRequest()
-				.body(baseProblem(HttpStatus.BAD_REQUEST, ApiErrorCode.VALIDATION_FAILED, exception.getReason()));
+				.body(baseProblem(HttpStatus.BAD_REQUEST, ApiErrorCode.VALIDATION_FAILED, exception.getReason(),
+						exchange));
 	}
 
 	@ExceptionHandler(Exception.class)
-	public ResponseEntity<ProblemDetail> handleUnexpectedException(Exception exception) {
-		LOGGER.error("Unexpected API error", exception);
+	public ResponseEntity<ProblemDetail> handleUnexpectedException(Exception exception, ServerWebExchange exchange) {
+		LOGGER.error("Unexpected API error requestId={}", requestId(exchange), exception);
 		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
 				.body(baseProblem(HttpStatus.INTERNAL_SERVER_ERROR, ApiErrorCode.INTERNAL_ERROR,
-						"Unexpected server error"));
+						"Unexpected server error", exchange));
 	}
 
-	private ProblemDetail baseProblem(HttpStatus status, ApiErrorCode errorCode, String detail) {
+	private ProblemDetail baseProblem(HttpStatus status, ApiErrorCode errorCode, String detail,
+			ServerWebExchange exchange) {
 		ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(status, detail);
 		problemDetail.setTitle(errorCode.getValue());
 		problemDetail.setProperty("code", errorCode.getValue());
 		problemDetail.setProperty("timestamp", clock.instant());
+		problemDetail.setProperty(ApplicationConstants.REQUEST_ID_ATTRIBUTE, requestId(exchange));
 		return problemDetail;
+	}
+
+	private String requestId(ServerWebExchange exchange) {
+		return exchange.getAttributeOrDefault(ApplicationConstants.REQUEST_ID_ATTRIBUTE, ApplicationConstants.UNKNOWN);
 	}
 }

@@ -8,7 +8,7 @@ import com.agenticproficient.urlshortner.common.ApiPaths;
 import com.agenticproficient.urlshortner.shortener.dto.AnalyticsResponse;
 import com.agenticproficient.urlshortner.shortener.dto.CreateShortUrlRequest;
 import com.agenticproficient.urlshortner.shortener.dto.UrlResponse;
-import com.agenticproficient.urlshortner.shortener.service.UrlShortenerService;
+import com.agenticproficient.urlshortner.shortener.service.UrlShortenerFacadeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
@@ -33,10 +33,10 @@ import reactor.core.publisher.Mono;
 @Tag(name = "URL Shortener", description = "Create, inspect, and analyze shortened URLs.")
 public class UrlShortenerController {
 
-	private final UrlShortenerService urlShortenerService;
+	private final UrlShortenerFacadeService urlShortenerFacadeService;
 
-	public UrlShortenerController(UrlShortenerService urlShortenerService) {
-		this.urlShortenerService = urlShortenerService;
+	public UrlShortenerController(UrlShortenerFacadeService urlShortenerFacadeService) {
+		this.urlShortenerFacadeService = urlShortenerFacadeService;
 	}
 
 	@PostMapping(path = ApiPaths.URLS)
@@ -55,7 +55,7 @@ public class UrlShortenerController {
 					description = "URL creation request", required = true,
 					content = @Content(schema = @Schema(implementation = CreateShortUrlRequest.class)))
 			@Valid @RequestBody CreateShortUrlRequest request) {
-		return urlShortenerService.createShortUrl(request)
+		return urlShortenerFacadeService.createShortUrl(request)
 				.map(response -> ResponseEntity.created(URI.create(response.shortUrl())).body(response));
 	}
 
@@ -65,7 +65,7 @@ public class UrlShortenerController {
 	@ApiResponse(responseCode = "200", description = "Available short URLs",
 			content = @Content(array = @ArraySchema(schema = @Schema(implementation = UrlResponse.class))))
 	public Flux<UrlResponse> getAllShortUrls() {
-		return urlShortenerService.getAllShortUrls();
+		return urlShortenerFacadeService.getAllShortUrls();
 	}
 
 	@GetMapping(path = ApiPaths.URLS + "/{shortCode}")
@@ -82,7 +82,7 @@ public class UrlShortenerController {
 	public Mono<UrlResponse> getShortUrl(
 			@Parameter(description = "Short code or custom alias", example = "docs2026", required = true)
 			@PathVariable String shortCode) {
-		return urlShortenerService.getShortUrl(shortCode);
+		return urlShortenerFacadeService.getShortUrl(shortCode);
 	}
 
 	@GetMapping(path = ApiPaths.URLS + "/{shortCode}/analytics")
@@ -99,6 +99,6 @@ public class UrlShortenerController {
 	public Mono<AnalyticsResponse> getAnalytics(
 			@Parameter(description = "Short code or custom alias", example = "docs2026", required = true)
 			@PathVariable String shortCode) {
-		return urlShortenerService.getAnalytics(shortCode);
+		return urlShortenerFacadeService.getAnalytics(shortCode);
 	}
 }

@@ -28,12 +28,15 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 /**
- * Application service that acts as the facade for URL shortener use cases.
+ * Facade service for URL shortener use cases.
+ *
+ * Controllers call this single boundary instead of coordinating validators, generators,
+ * repositories, mappers, metrics, and click tracking directly.
  */
 @Service
-public class UrlShortenerService {
+public class UrlShortenerFacadeService {
 
-	private static final Logger LOGGER = LoggerFactory.getLogger(UrlShortenerService.class);
+	private static final Logger LOGGER = LoggerFactory.getLogger(UrlShortenerFacadeService.class);
 
 	private final ClickEventRepository clickEventRepository;
 	private final Clock clock;
@@ -47,7 +50,7 @@ public class UrlShortenerService {
 	private final UrlShortenerMapper mapper;
 	private final UrlShortenerProperties properties;
 
-	public UrlShortenerService(ClickEventRepository clickEventRepository, Clock clock, MeterRegistry meterRegistry,
+	public UrlShortenerFacadeService(ClickEventRepository clickEventRepository, Clock clock, MeterRegistry meterRegistry,
 			RequestFingerprintService fingerprintService, ShortCodeGenerator shortCodeGenerator,
 			ShortUrlRepository shortUrlRepository, UrlPolicyValidator policyValidator, UrlShortenerMapper mapper,
 			UrlShortenerProperties properties) {

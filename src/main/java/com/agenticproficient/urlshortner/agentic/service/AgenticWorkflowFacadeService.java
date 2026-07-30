@@ -40,12 +40,15 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * Application service that acts as the facade for SDLC workflow use cases.
+ * Facade service for SDLC workflow use cases.
+ *
+ * Controllers call this single boundary instead of coordinating graph planning,
+ * guardrails, step execution, audit persistence, metrics, and response mapping directly.
  */
 @Service
-public class AgenticWorkflowService {
+public class AgenticWorkflowFacadeService {
 
-	private static final Logger LOGGER = LoggerFactory.getLogger(AgenticWorkflowService.class);
+	private static final Logger LOGGER = LoggerFactory.getLogger(AgenticWorkflowFacadeService.class);
 
 	private final AgenticAuditEventRepository auditEventRepository;
 	private final AgenticExecutionRepository executionRepository;
@@ -58,7 +61,7 @@ public class AgenticWorkflowService {
 	private final PolicyGuardrailService policyGuardrailService;
 	private final WorkflowGraph workflowGraph;
 
-	public AgenticWorkflowService(AgenticAuditEventRepository auditEventRepository,
+	public AgenticWorkflowFacadeService(AgenticAuditEventRepository auditEventRepository,
 			AgenticExecutionRepository executionRepository, AgenticResponseMapper mapper,
 			AgenticStepExecutor stepExecutor, AgenticWorkflowProperties properties, Clock clock,
 			MeterRegistry meterRegistry, ObjectMapper objectMapper, PolicyGuardrailService policyGuardrailService,

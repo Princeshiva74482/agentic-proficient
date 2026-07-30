@@ -9,7 +9,7 @@ import com.agenticproficient.urlshortner.agentic.dto.ApprovalRequest;
 import com.agenticproficient.urlshortner.agentic.dto.AuditEventResponse;
 import com.agenticproficient.urlshortner.agentic.dto.SdlcExecutionResponse;
 import com.agenticproficient.urlshortner.agentic.dto.StartSdlcExecutionRequest;
-import com.agenticproficient.urlshortner.agentic.service.AgenticWorkflowService;
+import com.agenticproficient.urlshortner.agentic.service.AgenticWorkflowFacadeService;
 import com.agenticproficient.urlshortner.common.ApiPaths;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -36,10 +36,10 @@ import reactor.core.publisher.Mono;
 		description = "Governed requirement-to-release workflow with graph execution, approvals, audit, and metrics.")
 public class SdlcOrchestrationController {
 
-	private final AgenticWorkflowService workflowService;
+	private final AgenticWorkflowFacadeService workflowFacadeService;
 
-	public SdlcOrchestrationController(AgenticWorkflowService workflowService) {
-		this.workflowService = workflowService;
+	public SdlcOrchestrationController(AgenticWorkflowFacadeService workflowFacadeService) {
+		this.workflowFacadeService = workflowFacadeService;
 	}
 
 	@PostMapping(path = ApiPaths.SDLC_EXECUTIONS)
@@ -56,7 +56,7 @@ public class SdlcOrchestrationController {
 					description = "Workflow start request", required = true,
 					content = @Content(schema = @Schema(implementation = StartSdlcExecutionRequest.class)))
 			@Valid @RequestBody StartSdlcExecutionRequest request) {
-		return workflowService.start(request)
+		return workflowFacadeService.start(request)
 				.map(response -> ResponseEntity.created(URI.create(ApiPaths.SDLC_EXECUTIONS + "/"
 						+ response.executionId())).body(response));
 	}
@@ -67,7 +67,7 @@ public class SdlcOrchestrationController {
 	@ApiResponse(responseCode = "200", description = "Recent executions",
 			content = @Content(array = @ArraySchema(schema = @Schema(implementation = SdlcExecutionResponse.class))))
 	public Flux<SdlcExecutionResponse> getAll() {
-		return workflowService.getAll();
+		return workflowFacadeService.getAll();
 	}
 
 	@GetMapping(path = ApiPaths.SDLC_EXECUTIONS + "/{executionId}")
@@ -84,7 +84,7 @@ public class SdlcOrchestrationController {
 					example = "3fa85f64-5717-4562-b3fc-2c963f66afa6",
 					required = true)
 			@PathVariable UUID executionId) {
-		return workflowService.get(executionId);
+		return workflowFacadeService.get(executionId);
 	}
 
 	@PostMapping(path = ApiPaths.SDLC_EXECUTIONS + "/{executionId}/approvals")
@@ -106,7 +106,7 @@ public class SdlcOrchestrationController {
 					description = "Human approval decision", required = true,
 					content = @Content(schema = @Schema(implementation = ApprovalRequest.class)))
 			@Valid @RequestBody ApprovalRequest request) {
-		return workflowService.approve(executionId, request);
+		return workflowFacadeService.approve(executionId, request);
 	}
 
 	@GetMapping(path = ApiPaths.SDLC_EXECUTIONS + "/{executionId}/audit")
@@ -122,6 +122,6 @@ public class SdlcOrchestrationController {
 			@Parameter(description = "Workflow execution id", example = "3fa85f64-5717-4562-b3fc-2c963f66afa6",
 					required = true)
 			@PathVariable UUID executionId) {
-		return workflowService.audit(executionId);
+		return workflowFacadeService.audit(executionId);
 	}
 }

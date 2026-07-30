@@ -1,15 +1,28 @@
 # Agentic URL Shortener
 
-Reactive Spring Boot prototype for a production-style URL shortener with analytics and an agentic SDLC orchestration layer. The application uses WebFlux, Spring Data R2DBC, H2, Flyway, MapStruct, facade boundaries, validation, metrics, and explicit human approval gates.
+Reactive Spring Boot assessment application for a production-style URL shortener with analytics and an agentic SDLC orchestration layer. It uses WebFlux, Spring Data R2DBC, H2, Flyway, MapStruct, validation, metrics, request tracing, OpenAPI, and facade services.
 
 ## What It Delivers
 
-- URL shortening API with generated or custom aliases.
-- Redirect endpoint with click tracking and privacy-preserving IP hashing.
-- Analytics API with total clicks, unique visitors, last access time, and recent clicks.
-- Agentic orchestration API that converts requirements into governed SDLC execution state.
-- Explicit dependency graph, entry/exit gates, approvals, audit events, retries, fallback, rollback, safe-stop, and reliability metrics.
+- URL shortening with generated codes or custom aliases.
+- Public redirect endpoint with click tracking and privacy-preserving IP hashing.
+- Analytics for total clicks, approximate unique visitors, last access time, and recent clicks.
+- List endpoint for available short URLs.
+- Agentic SDLC orchestration with graph execution, approval gates, audit events, retries, fallback, rollback, safe-stop, and reliability metrics.
+- HTML proficiency score report for client review.
+- Request tracing through `X-Request-Id` headers and error payloads.
 - Flyway-managed H2 schema for repeatable local startup.
+
+## Architecture Summary
+
+The application uses a simple facade-service approach:
+
+- `UrlShortenerController` depends on `UrlShortenerFacadeService`.
+- `RedirectController` depends on `UrlShortenerFacadeService`.
+- `SdlcOrchestrationController` depends on `AgenticWorkflowFacadeService`.
+- Facade services hide validation, code generation, repositories, mappers, metrics, click tracking, workflow graph execution, guardrails, retries, fallback, audit persistence, and response mapping.
+
+This keeps the code easy to explain to a client: controllers expose APIs, facade services coordinate use cases, repositories handle persistence, and mappers convert entities to API responses.
 
 ## Prerequisites
 
@@ -30,9 +43,16 @@ The service starts on `http://localhost:8080` by default.
 .\gradlew.bat test
 ```
 
-The tests run against an in-memory H2 database and cover URL creation, redirect analytics, private-host validation, policy guardrails, and orchestration approval gates.
+The test suite covers URL creation, redirects, analytics, list endpoints, private-host validation, SDLC orchestration approval gates, policy safe-stop behavior, request IDs, and the HTML score report.
 
-## Core API Examples
+## Client Review URLs
+
+- Swagger UI: `http://localhost:8080/swagger-ui.html`
+- Health: `http://localhost:8080/actuator/health`
+- Metrics: `http://localhost:8080/actuator/metrics`
+- Proficiency report: `http://localhost:8080/api/v1/reports/proficiency-score`
+
+## URL Shortener APIs
 
 Create a short URL:
 
@@ -40,6 +60,18 @@ Create a short URL:
 curl -X POST http://localhost:8080/api/v1/urls \
   -H "Content-Type: application/json" \
   -d '{"originalUrl":"https://example.com/docs","customAlias":"docs2026"}'
+```
+
+List available short URLs:
+
+```bash
+curl http://localhost:8080/api/v1/urls
+```
+
+Get short URL metadata:
+
+```bash
+curl http://localhost:8080/api/v1/urls/docs2026
 ```
 
 Redirect:
@@ -54,7 +86,9 @@ Analytics:
 curl http://localhost:8080/api/v1/urls/docs2026/analytics
 ```
 
-Start an agentic SDLC execution:
+## Agentic SDLC APIs
+
+Start an execution:
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/sdlc/executions \
@@ -62,7 +96,19 @@ curl -X POST http://localhost:8080/api/v1/sdlc/executions \
   -d '{"scenarioType":"GREENFIELD","requirement":"Build a reactive URL shortener with analytics."}'
 ```
 
-Approve a pending gate:
+List recent executions:
+
+```bash
+curl http://localhost:8080/api/v1/sdlc/executions
+```
+
+Get execution state:
+
+```bash
+curl http://localhost:8080/api/v1/sdlc/executions/{executionId}
+```
+
+Approve or reject a pending gate:
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/sdlc/executions/{executionId}/approvals \
@@ -70,27 +116,56 @@ curl -X POST http://localhost:8080/api/v1/sdlc/executions/{executionId}/approval
   -d '{"approved":true,"approver":"reviewer@example.com","comment":"Reviewed and approved."}'
 ```
 
-## Documentation
+Get audit events:
 
-- `docs/architecture.md` explains components, orchestration model, control flow, and decisions.
-- `docs/scenarios.md` covers greenfield, brownfield, and ambiguous requirement scenarios.
-- `docs/openapi.yml` provides a reviewable API/schema contract.
-- `docs/engineering-summary.md` captures assumptions, risks, validation, limitations, and release readiness.
+```bash
+curl http://localhost:8080/api/v1/sdlc/executions/{executionId}/audit
+```
+
+Use an `executionId` returned by `POST /api/v1/sdlc/executions` or `GET /api/v1/sdlc/executions`. Swagger example UUIDs are placeholders and return `404` unless they exist in the current H2 database.
+
+## Proficiency Report
+
+The HTML report is stored as a real resource file:
+
+- File: `src/main/resources/reports/proficiency-score.html`
+- Endpoint: `GET /api/v1/reports/proficiency-score`
+- Current estimated score: `4.1 / 5`
+
+The score reflects API design, facade-service clarity, agentic workflow design, auditability, reliability controls, validation, testing, and cost-awareness strategy.
 
 ## Configuration
 
 Key settings live in `src/main/resources/application.yml`:
 
-- `url-shortener.base-url`: public base URL used in API responses.
+- `URL_SHORTENER_BASE_URL`: public base URL used in API responses.
+- `URL_SHORTENER_IP_HASH_SALT`: salt for privacy-preserving IP hashing.
 - `url-shortener.code-length`: generated alias length.
+- `url-shortener.max-list-size`: maximum short URLs returned by the list endpoint.
 - `url-shortener.security.allow-private-hosts`: SSRF protection switch.
-- `url-shortener.privacy.ip-hash-salt`: salt for click IP hashing.
 - `agentic.workflow.max-retries`: bounded retry count per workflow step.
 - `agentic.workflow.step-timeout`: timeout per agentic step.
 - `agentic.workflow.parallelism`: maximum concurrent ready steps.
+- `agentic.workflow.max-list-size`: maximum SDLC executions returned by the list endpoint.
+
+## Request Tracing
+
+Every response includes `X-Request-Id`.
+
+- If the client sends `X-Request-Id`, the same value is returned.
+- If the client does not send it, the application generates one.
+- Error responses include `requestId` in the response body.
+
+Example:
+
+```bash
+curl -i http://localhost:8080/api/v1/urls/missing-alias \
+  -H "X-Request-Id: client-demo-request"
+```
 
 ## Important Limits
 
-- H2 is used for prototype repeatability; use PostgreSQL or another durable database for production.
-- The agentic step executor is deterministic and local; it models governed SDLC automation without calling external LLM APIs.
-- Approval gates are API-enforced but not identity-provider-backed in this prototype.
+- H2 is used intentionally for assessment repeatability; data resets when the in-memory database restarts.
+- The agentic executor is deterministic and local; it models governed SDLC automation without external LLM calls.
+- Approval gates are API-enforced but not integrated with an identity provider.
+- Authentication, rate limiting, deployment profiles, and real LLM model routing are natural next steps for a production deployment.

@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
@@ -162,6 +163,34 @@ class UrlShortenerIntegrationTests {
 		assertThat(executions)
 				.isNotNull()
 				.anyMatch(execution -> started.executionId().equals(execution.executionId()));
+	}
+
+	@Test
+	void rendersAiAndAgenticProficiencyScoreReport() {
+		webTestClient.get()
+				.uri("/api/v1/reports/proficiency-score")
+				.exchange()
+				.expectStatus().isOk()
+				.expectHeader().exists("X-Request-Id")
+				.expectHeader().contentTypeCompatibleWith(MediaType.TEXT_HTML)
+				.expectBody(String.class)
+				.value(body -> assertThat(body)
+						.contains("4.1")
+						.contains("UrlShortenerFacadeService")
+						.contains("AgenticWorkflowFacadeService"));
+	}
+
+	@Test
+	void includesRequestIdForHandledErrors() {
+		webTestClient.get()
+				.uri("/api/v1/urls/missing-alias")
+				.header("X-Request-Id", "client-demo-request")
+				.exchange()
+				.expectStatus().isNotFound()
+				.expectHeader().valueEquals("X-Request-Id", "client-demo-request")
+				.expectBody()
+				.jsonPath("$.requestId").isEqualTo("client-demo-request")
+				.jsonPath("$.code").isEqualTo("URL_NOT_FOUND");
 	}
 
 	@Test

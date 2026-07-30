@@ -3,7 +3,7 @@ package com.agenticproficient.urlshortner.shortener.controller;
 import java.net.URI;
 
 import com.agenticproficient.urlshortner.shortener.model.ClickContext;
-import com.agenticproficient.urlshortner.shortener.service.UrlShortenerService;
+import com.agenticproficient.urlshortner.shortener.service.UrlShortenerFacadeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -24,10 +24,10 @@ import reactor.core.publisher.Mono;
 @Tag(name = "Redirect", description = "Resolve short codes and redirect to original URLs.")
 public class RedirectController {
 
-	private final UrlShortenerService urlShortenerService;
+	private final UrlShortenerFacadeService urlShortenerFacadeService;
 
-	public RedirectController(UrlShortenerService urlShortenerService) {
-		this.urlShortenerService = urlShortenerService;
+	public RedirectController(UrlShortenerFacadeService urlShortenerFacadeService) {
+		this.urlShortenerFacadeService = urlShortenerFacadeService;
 	}
 
 	@GetMapping("/{shortCode}")
@@ -47,7 +47,7 @@ public class RedirectController {
 			@PathVariable String shortCode,
 			ServerHttpRequest request) {
 
-		return urlShortenerService.resolveRedirect(shortCode, ClickContext.from(request))
+		return urlShortenerFacadeService.resolveRedirect(shortCode, ClickContext.from(request))
 				.map(target -> ResponseEntity.status(HttpStatus.FOUND)
 						.location(URI.create(target.originalUrl()))
 						.<Void>build());
