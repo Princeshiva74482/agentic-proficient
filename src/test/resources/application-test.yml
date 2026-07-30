@@ -1,0 +1,4 @@
+url-shortener:
+  base-url: http://localhost:8080
+  privacy:
+    ip-hash-salt: test-salt

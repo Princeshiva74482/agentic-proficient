@@ -1,0 +1,315 @@
+openapi: 3.0.3
+info:
+  title: Agentic URL Shortener API
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+paths:
+  /api/v1/urls:
+    post:
+      summary: Create a short URL
+      operationId: createShortUrl
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateShortUrlRequest'
+      responses:
+        '201':
+          description: Short URL created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UrlResponse'
+        '400':
+          description: Invalid URL, alias, or expiration
+        '409':
+          description: Alias unavailable
+  /api/v1/urls/{shortCode}:
+    get:
+      summary: Get short URL metadata
+      operationId: getShortUrl
+      parameters:
+        - $ref: '#/components/parameters/ShortCode'
+      responses:
+        '200':
+          description: Short URL metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UrlResponse'
+        '404':
+          description: Short URL not found
+  /api/v1/urls/{shortCode}/analytics:
+    get:
+      summary: Get URL analytics
+      operationId: getAnalytics
+      parameters:
+        - $ref: '#/components/parameters/ShortCode'
+      responses:
+        '200':
+          description: URL analytics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsResponse'
+  /{shortCode}:
+    get:
+      summary: Redirect to original URL
+      operationId: redirect
+      parameters:
+        - $ref: '#/components/parameters/ShortCode'
+      responses:
+        '302':
+          description: Redirect target found
+        '404':
+          description: Short URL not found
+        '410':
+          description: Short URL expired
+  /api/v1/sdlc/executions:
+    post:
+      summary: Start an agentic SDLC execution
+      operationId: start
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartSdlcExecutionRequest'
+      responses:
+        '201':
+          description: Execution created and advanced to next gate
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SdlcExecutionResponse'
+  /api/v1/sdlc/executions/{executionId}:
+    get:
+      summary: Get SDLC execution state
+      operationId: get
+      parameters:
+        - $ref: '#/components/parameters/ExecutionId'
+      responses:
+        '200':
+          description: Execution state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SdlcExecutionResponse'
+  /api/v1/sdlc/executions/{executionId}/approvals:
+    post:
+      summary: Approve or reject a pending gate
+      operationId: approve
+      parameters:
+        - $ref: '#/components/parameters/ExecutionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApprovalRequest'
+      responses:
+        '200':
+          description: Updated execution state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SdlcExecutionResponse'
+  /api/v1/sdlc/executions/{executionId}/audit:
+    get:
+      summary: Get audit events for an SDLC execution
+      operationId: audit
+      parameters:
+        - $ref: '#/components/parameters/ExecutionId'
+      responses:
+        '200':
+          description: Ordered audit events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AuditEventResponse'
+components:
+  parameters:
+    ShortCode:
+      name: shortCode
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 4
+        maxLength: 32
+    ExecutionId:
+      name: executionId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  schemas:
+    CreateShortUrlRequest:
+      type: object
+      required:
+        - originalUrl
+      properties:
+        originalUrl:
+          type: string
+          maxLength: 2048
+          example: https://example.com/docs
+        customAlias:
+          type: string
+          minLength: 4
+          maxLength: 32
+          pattern: ^[A-Za-z0-9_-]+$
+          example: docs2026
+        expiresAt:
+          type: string
+          format: date-time
+    UrlResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        originalUrl:
+          type: string
+        shortCode:
+          type: string
+        shortUrl:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        active:
+          type: boolean
+        accessCount:
+          type: integer
+          format: int64
+    AnalyticsResponse:
+      type: object
+      properties:
+        shortCode:
+          type: string
+        originalUrl:
+          type: string
+        totalClicks:
+          type: integer
+          format: int64
+        uniqueVisitors:
+          type: integer
+          format: int64
+        lastAccessedAt:
+          type: string
+          format: date-time
+        recentClicks:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecentClickResponse'
+    RecentClickResponse:
+      type: object
+      properties:
+        clickedAt:
+          type: string
+          format: date-time
+        referrer:
+          type: string
+        userAgent:
+          type: string
+    StartSdlcExecutionRequest:
+      type: object
+      required:
+        - scenarioType
+        - requirement
+      properties:
+        scenarioType:
+          type: string
+          enum:
+            - GREENFIELD
+            - BROWNFIELD
+            - AMBIGUOUS
+        requirement:
+          type: string
+          maxLength: 8000
+    ApprovalRequest:
+      type: object
+      required:
+        - approved
+        - approver
+      properties:
+        approved:
+          type: boolean
+        approver:
+          type: string
+          maxLength: 120
+        comment:
+          type: string
+          maxLength: 1000
+    SdlcExecutionResponse:
+      type: object
+      properties:
+        executionId:
+          type: string
+          format: uuid
+        correlationId:
+          type: string
+        scenarioType:
+          type: string
+        status:
+          type: string
+        completedSteps:
+          type: array
+          items:
+            type: string
+        pendingApprovalStep:
+          type: string
+        context:
+          type: object
+        reliabilityMetrics:
+          $ref: '#/components/schemas/ReliabilityMetricsResponse'
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+    ReliabilityMetricsResponse:
+      type: object
+      properties:
+        successRate:
+          type: number
+          format: double
+        retryCount:
+          type: integer
+        rollbackCount:
+          type: integer
+        mttrMillis:
+          type: integer
+          format: int64
+        endToEndLatencyMillis:
+          type: integer
+          format: int64
+    AuditEventResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        executionId:
+          type: string
+          format: uuid
+        eventType:
+          type: string
+        step:
+          type: string
+        message:
+          type: string
+        metadataJson:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
